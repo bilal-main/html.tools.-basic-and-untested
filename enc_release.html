@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRYPTO · CHACHA20-POLY1305</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #050608;
+            font-family: 'Segoe UI', 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 700px;
+            width: 100%;
+            background: #0b0e12;
+            border: 1px solid #2a2f36;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        .section {
+            margin-bottom: 24px;
+            border-bottom: 1px solid #1e2228;
+            padding-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #8f9aae;
+            margin-bottom: 8px;
+        }
+
+        input, button, .file-label {
+            background: #111418;
+            border: 1px solid #2c323c;
+            color: #eef2ff;
+            font-family: monospace;
+            font-size: 14px;
+            padding: 10px 12px;
+            border-radius: 4px;
+            width: 100%;
+            transition: 0.1s;
+        }
+
+        input:focus, button:focus {
+            outline: none;
+            border-color: #5e7b9c;
+        }
+
+        button {
+            cursor: pointer;
+            background: #1a1f26;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:active {
+            background: #2c3440;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .row button {
+            flex: 1;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .file-label {
+            display: inline-block;
+            width: 100%;
+            text-align: center;
+            cursor: pointer;
+            background: #111418;
+        }
+
+        .status {
+            margin-top: 16px;
+            padding: 10px;
+            background: #080b0f;
+            border-left: 3px solid #3f5a78;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            color: #b9c4db;
+        }
+
+        .error {
+            color: #cf6f6f;
+            border-left-color: #cf6f6f;
+        }
+
+        .progress {
+            width: 100%;
+            height: 2px;
+            background: #1e2228;
+            margin-top: 8px;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: #5e7b9c;
+            transition: width 0.1s;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="section">
+        <label>FILE</label>
+        <div class="file-input-wrapper">
+            <input type="file" id="fileInput">
+            <div class="file-label" id="fileLabel">SELECT FILE</div>
+        </div>
+        <div id="fileInfo" class="status" style="margin-top:8px; padding:6px;">— none —</div>
+    </div>
+
+    <div class="section">
+        <label>KEY (PASSWORD)</label>
+        <input type="password" id="keyInput" placeholder="enter passphrase">
+    </div>
+
+    <div class="row">
+        <button id="encryptBtn">ENCRYPT</button>
+        <button id="decryptBtn">DECRYPT</button>
+    </div>
+
+    <div class="progress">
+        <div id="progressBar" class="progress-bar"></div>
+    </div>
+    <div id="statusMsg" class="status">● idle</div>
+</div>
+
+<script>
+    // ==================== ChaCha20-Poly1305 (streaming, pure JS) ====================
+    (function() {
+        function add32(a, b) { return (a + b) & 0xffffffff; }
+        function rotl32(w, r) { return (w << r) | (w >>> (32 - r)); }
+
+        function quarterRound(x, a, b, c, d) {
+            x[a] = add32(x[a], x[b]); x[d] = rotl32(x[d] ^ x[a], 16);
+            x[c] = add32(x[c], x[d]); x[b] = rotl32(x[b] ^ x[c], 12);
+            x[a] = add32(x[a], x[b]); x[d] = rotl32(x[d] ^ x[a], 8);
+            x[c] = add32(x[c], x[d]); x[b] = rotl32(x[b] ^ x[c], 7);
+        }
+
+        function chacha20_block(key, counter, nonce) {
+            let state = [
+                0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,
+                key[0], key[1], key[2], key[3],
+                key[4], key[5], key[6], key[7],
+                counter, nonce[0], nonce[1], nonce[2]
+            ];
+            let working = state.slice();
+            for (let i = 0; i < 10; i++) {
+                quarterRound(working, 0, 4, 8, 12);
+                quarterRound(working, 1, 5, 9, 13);
+                quarterRound(working, 2, 6, 10, 14);
+                quarterRound(working, 3, 7, 11, 15);
+                quarterRound(working, 0, 5, 10, 15);
+                quarterRound(working, 1, 6, 11, 12);
+                quarterRound(working, 2, 7, 8, 13);
+                quarterRound(working, 3, 4, 9, 14);
+            }
+            for (let i = 0; i < 16; i++) working[i] = add32(working[i], state[i]);
+            let output = new Uint8Array(64);
+            for (let i = 0; i < 16; i++) {
+                output[i*4]   = working[i] & 0xff;
+                output[i*4+1] = (working[i] >>> 8) & 0xff;
+                output[i*4+2] = (working[i] >>> 16) & 0xff;
+                output[i*4+3] = (working[i] >>> 24) & 0xff;
+            }
+            return output;
+        }
+
+        function poly1305_mac(key, data) {
+            let r = new Uint8Array(16), s = new Uint8Array(16);
+            for (let i=0;i<16;i++) r[i] = key[i];
+            for (let i=0;i<16;i++) s[i] = key[16+i];
+            r[3] &= 15; r[7] &= 15; r[11] &= 15; r[15] &= 15;
+            r[4] &= 252; r[8] &= 252; r[12] &= 252;
+            let r0 = (r[0]|r[1]<<8|r[2]<<16|r[3]<<24) >>> 0;
+            let r1 = (r[4]|r[5]<<8|r[6]<<16|r[7]<<24) >>> 0;
+            let r2 = (r[8]|r[9]<<8|r[10]<<16|r[11]<<24) >>> 0;
+            let r3 = (r[12]|r[13]<<8|r[14]<<16|r[15]<<24) >>> 0;
+            let s1 = r1 * 5, s2 = r2 * 5, s3 = r3 * 5;
+            let h0=0,h1=0,h2=0,h3=0;
+            let i=0;
+            while (i < data.length) {
+                let block = new Uint8Array(16);
+                let n = Math.min(16, data.length - i);
+                for (let j=0;j<n;j++) block[j] = data[i+j];
+                block[n] = 1;
+                let d0 = (block[0]|block[1]<<8|block[2]<<16|block[3]<<24) >>> 0;
+                let d1 = (block[4]|block[5]<<8|block[6]<<16|block[7]<<24) >>> 0;
+                let d2 = (block[8]|block[9]<<8|block[10]<<16|block[11]<<24) >>> 0;
+                let d3 = (block[12]|block[13]<<8|block[14]<<16|block[15]<<24) >>> 0;
+                h0 = (h0 + d0) >>> 0;
+                h1 = (h1 + d1) >>> 0;
+                h2 = (h2 + d2) >>> 0;
+                h3 = (h3 + d3) >>> 0;
+                let carry;
+                let h0r0 = h0 * r0;
+                let h0r1 = h0 * r1;
+                let h0r2 = h0 * r2;
+                let h0r3 = h0 * r3;
+                let h1r0 = h1 * r0;
+                let h1r1 = h1 * r1;
+                let h1r2 = h1 * r2;
+                let h1r3 = h1 * r3;
+                let h2r0 = h2 * r0;
+                let h2r1 = h2 * r1;
+                let h2r2 = h2 * r2;
+                let h2r3 = h2 * r3;
+                let h3r0 = h3 * r0;
+                let h3r1 = h3 * r1;
+                let h3r2 = h3 * r2;
+                let h3r3 = h3 * r3;
+                let t0 = (h0r0 + h1r3 + h2r2 + h3r1) >>> 0;
+                let t1 = (h0r1 + h1r0 + h2r3 + h3r2) >>> 0;
+                let t2 = (h0r2 + h1r1 + h2r0 + h3r3) >>> 0;
+                let t3 = (h0r3 + h1r2 + h2r1 + h3r0) >>> 0;
+                h0 = t0 & 0x3ffffff;
+                carry = (t0 >>> 26);
+                h1 = (t1 + carry) & 0x3ffffff;
+                carry = (t1 + carry) >>> 26;
+                h2 = (t2 + carry) & 0x3ffffff;
+                carry = (t2 + carry) >>> 26;
+                h3 = (t3 + carry) & 0x3ffffff;
+                carry = (t3 + carry) >>> 26;
+                h0 = (h0 + carry * 5) & 0x3ffffff;
+                i += n;
+            }
+            let g0 = h0 + 5; let g1 = h1; let g2 = h2; let g3 = h3;
+            let c = g0 >>> 26; g0 &= 0x3ffffff; g1 += c;
+            c = g1 >>> 26; g1 &= 0x3ffffff; g2 += c;
+            c = g2 >>> 26; g2 &= 0x3ffffff; g3 += c;
+            c = g3 >>> 26; g3 &= 0x3ffffff; g0 += c * 5;
+            let mask = (g0 >>> 26) - 1;
+            let f0 = (h0 & mask) | (g0 & ~mask);
+            let f1 = (h1 & mask) | (g1 & ~mask);
+            let f2 = (h2 & mask) | (g2 & ~mask);
+            let f3 = (h3 & mask) | (g3 & ~mask);
+            let f = (f0 | (f1<<26) | (f2<<52) | (f3<<78)) >>> 0;
+            let result = new Uint8Array(16);
+            for (let j=0;j<16;j++) result[j] = (f >>> (8*j)) & 0xff;
+            let carry2 = 0;
+            for (let j=0;j<16;j++) {
+                let t = result[j] + s[j] + carry2;
+                result[j] = t & 0xff;
+                carry2 = t >>> 8;
+            }
+            return result;
+        }
+
+        window.ChaCha20Poly1305 = function(key, nonce) {
+            this.key = new Uint8Array(key);
+            this.nonce = new Uint8Array(nonce);
+            this.blockCounter = 0;
+            this.buffer = new Uint8Array(0);
+            this.ciphertext = [];
+            this.totalLen = 0;
+            this.encrypting = true;
+        };
+
+        ChaCha20Poly1305.prototype._nextKeystream = function() {
+            let block = chacha20_block(
+                [this.key[0]|this.key[1]<<8|this.key[2]<<16|this.key[3]<<24,
+                 this.key[4]|this.key[5]<<8|this.key[6]<<16|this.key[7]<<24,
+                 this.key[8]|this.key[9]<<8|this.key[10]<<16|this.key[11]<<24,
+                 this.key[12]|this.key[13]<<8|this.key[14]<<16|this.key[15]<<24,
+                 this.key[16]|this.key[17]<<8|this.key[18]<<16|this.key[19]<<24,
+                 this.key[20]|this.key[21]<<8|this.key[22]<<16|this.key[23]<<24,
+                 this.key[24]|this.key[25]<<8|this.key[26]<<16|this.key[27]<<24,
+                 this.key[28]|this.key[29]<<8|this.key[30]<<16|this.key[31]<<24],
+                this.blockCounter,
+                [this.nonce[0]|this.nonce[1]<<8|this.nonce[2]<<16|this.nonce[3]<<24,
+                 this.nonce[4]|this.nonce[5]<<8|this.nonce[6]<<16|this.nonce[7]<<24,
+                 this.nonce[8]|this.nonce[9]<<8|this.nonce[10]<<16|this.nonce[11]<<24]
+            );
+            this.blockCounter++;
+            return block;
+        };
+
+        // FIX: store ciphertext for MAC during decryption as well
+        ChaCha20Poly1305.prototype.update = function(data) {
+            if (data.length === 0) return new Uint8Array(0);
+            let output = new Uint8Array(data.length);
+            let pos = 0;
+            while (pos < data.length) {
+                if (this.buffer.length === 0) this.buffer = this._nextKeystream();
+                let take = Math.min(this.buffer.length, data.length - pos);
+                for (let i=0;i<take;i++) output[pos+i] = data[pos+i] ^ this.buffer[i];
+                if (take === this.buffer.length) {
+                    this.buffer = new Uint8Array(0);
+                } else {
+                    let newBuf = new Uint8Array(this.buffer.length - take);
+                    for (let i=0;i<newBuf.length;i++) newBuf[i] = this.buffer[i+take];
+                    this.buffer = newBuf;
+                }
+                pos += take;
+            }
+            // Store data for MAC: for encryption, store ciphertext (output); for decryption, store ciphertext (input)
+            if (this.encrypting) {
+                this.ciphertext.push(output);
+            } else {
+                this.ciphertext.push(data);
+            }
+            this.totalLen += data.length;
+            return output;
+        };
+
+        ChaCha20Poly1305.prototype.finish = function() {
+            let polyKeyBlock = this._nextKeystream();
+            let polyKey = polyKeyBlock.slice(0,32);
+            let totalLen = this.totalLen;
+            let allData = new Uint8Array(totalLen);
+            let off = 0;
+            for (let i=0;i<this.ciphertext.length;i++) {
+                allData.set(this.ciphertext[i], off);
+                off += this.ciphertext[i].length;
+            }
+            let macData = new Uint8Array(allData.length + 16);
+            macData.set(allData);
+            let lenBlock = new Uint8Array(16);
+            let lenLow = totalLen & 0xffffffff;
+            let lenHigh = Math.floor(totalLen / 0x100000000);
+            lenBlock[0] = lenLow & 0xff; lenBlock[1] = (lenLow>>8)&0xff;
+            lenBlock[2] = (lenLow>>16)&0xff; lenBlock[3] = (lenLow>>24)&0xff;
+            lenBlock[4] = lenHigh & 0xff; lenBlock[5] = (lenHigh>>8)&0xff;
+            lenBlock[6] = (lenHigh>>16)&0xff; lenBlock[7] = (lenHigh>>24)&0xff;
+            for (let i=8;i<16;i++) lenBlock[i]=0;
+            let finalData = new Uint8Array(macData.length + 16);
+            finalData.set(macData);
+            finalData.set(lenBlock, macData.length);
+            return poly1305_mac(polyKey, finalData);
+        };
+    })();
+
+    function deriveKey(password) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(password);
+        return crypto.subtle.digest('SHA-256', data).then(hash => new Uint8Array(hash));
+    }
+
+    let currentFile = null;
+    let fileSize = 0;
+    let chunkSize = 1024 * 1024;
+
+    const fileInput = document.getElementById('fileInput');
+    const fileLabel = document.getElementById('fileLabel');
+    const fileInfo = document.getElementById('fileInfo');
+    const keyInput = document.getElementById('keyInput');
+    const encryptBtn = document.getElementById('encryptBtn');
+    const decryptBtn = document.getElementById('decryptBtn');
+    const statusDiv = document.getElementById('statusMsg');
+    const progressBar = document.getElementById('progressBar');
+
+    fileLabel.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) {
+            currentFile = e.target.files[0];
+            fileSize = currentFile.size;
+            fileInfo.innerText = `${currentFile.name} (${(fileSize/1024/1024).toFixed(2)} MB)`;
+            fileLabel.innerText = currentFile.name;
+        } else {
+            currentFile = null;
+            fileSize = 0;
+            fileInfo.innerText = '— none —';
+            fileLabel.innerText = 'SELECT FILE';
+        }
+    });
+
+    function updateProgress(percent) {
+        progressBar.style.width = Math.min(100, percent) + '%';
+    }
+
+    function setStatus(msg, isError = false) {
+        statusDiv.innerText = msg;
+        statusDiv.className = 'status' + (isError ? ' error' : '');
+    }
+
+    async function processFile(encryptMode) {
+        if (!currentFile) {
+            setStatus('ERROR: no file selected', true);
+            return;
+        }
+        const password = keyInput.value;
+        if (!password) {
+            setStatus('ERROR: key required', true);
+            return;
+        }
+
+        setStatus('⏳ deriving key...', false);
+        let keyBytes;
+        try {
+            keyBytes = await deriveKey(password);
+        } catch(e) {
+            setStatus('ERROR: key derivation failed', true);
+            return;
+        }
+
+        let nonce;
+        if (encryptMode) {
+            nonce = crypto.getRandomValues(new Uint8Array(12));
+        } else {
+            if (fileSize < 12 + 16) {
+                setStatus('ERROR: file too small (missing nonce or tag)', true);
+                return;
+            }
+            const slice = currentFile.slice(0, 12);
+            const arr = await slice.arrayBuffer();
+            nonce = new Uint8Array(arr);
+        }
+
+        let cipher = new ChaCha20Poly1305(keyBytes, nonce);
+        cipher.encrypting = encryptMode;
+        let processed = 0;
+        let offset = encryptMode ? 0 : 12;
+        let outputData = [];
+
+        let useFilePicker = false;
+        let outputStream = null;
+        if ('showSaveFilePicker' in window) {
+            useFilePicker = true;
+            try {
+                const suggestedName = encryptMode ? currentFile.name + '.enc' : currentFile.name.replace(/\.enc$/, '') || 'decrypted.bin';
+                const outputFileHandle = await window.showSaveFilePicker({
+                    suggestedName: suggestedName,
+                    types: [{
+                        description: 'Encrypted/Decrypted file',
+                        accept: { 'application/octet-stream': ['.enc', '.bin'] }
+                    }]
+                });
+                outputStream = await outputFileHandle.createWritable();
+            } catch(e) {
+                useFilePicker = false;
+                setStatus('Save dialog cancelled, falling back to download (memory heavy)', false);
+            }
+        }
+
+        if (!useFilePicker) outputData = [];
+
+        try {
+            if (encryptMode) {
+                // Encrypt: process whole file
+                while (offset < fileSize) {
+                    let end = Math.min(offset + chunkSize, fileSize);
+                    let slice = currentFile.slice(offset, end);
+                    let chunk = await slice.arrayBuffer();
+                    let input = new Uint8Array(chunk);
+                    let output = cipher.update(input);
+                    if (output.length) {
+                        if (useFilePicker) await outputStream.write(output);
+                        else outputData.push(output);
+                    }
+                    processed += input.length;
+                    offset = end;
+                    updateProgress((processed / fileSize) * 100);
+                    setStatus(`Encrypting ${Math.round((processed/fileSize)*100)}%`, false);
+                }
+                let tag = cipher.finish();
+                if (useFilePicker) {
+                    await outputStream.write(nonce);
+                    await outputStream.write(tag);
+                } else {
+                    let result = new Uint8Array(nonce.length + processed + tag.length);
+                    result.set(nonce, 0);
+                    let pos = nonce.length;
+                    for (let part of outputData) {
+                        result.set(part, pos);
+                        pos += part.length;
+                    }
+                    result.set(tag, pos);
+                    outputData = [result];
+                }
+            } else {
+                // Decrypt: skip nonce (12 bytes), process ciphertext, skip tag (16 bytes)
+                const ciphertextEnd = fileSize - 16;
+                while (offset < ciphertextEnd) {
+                    let end = Math.min(offset + chunkSize, ciphertextEnd);
+                    let slice = currentFile.slice(offset, end);
+                    let chunk = await slice.arrayBuffer();
+                    let input = new Uint8Array(chunk);
+                    let output = cipher.update(input);   // output is plaintext
+                    if (output.length) {
+                        if (useFilePicker) await outputStream.write(output);
+                        else outputData.push(output);
+                    }
+                    processed += input.length;
+                    offset = end;
+                    updateProgress((processed / (ciphertextEnd - 12)) * 100);
+                    setStatus(`Decrypting ${Math.round((processed / (ciphertextEnd - 12)) * 100)}%`, false);
+                }
+                let tag = cipher.finish();
+
+                // Read expected tag from file
+                const tagSlice = currentFile.slice(fileSize - 16, fileSize);
+                const tagBuf = await tagSlice.arrayBuffer();
+                const expectedTag = new Uint8Array(tagBuf);
+
+                let match = tag.length === expectedTag.length;
+                if (match) {
+                    for (let i=0; i<tag.length; i++) {
+                        if (tag[i] !== expectedTag[i]) { match = false; break; }
+                    }
+                }
+                if (!match) throw new Error('Authentication failed: wrong key or corrupted data');
+            }
+
+            if (useFilePicker) {
+                await outputStream.close();
+                setStatus(`✔️ ${encryptMode ? 'Encrypted' : 'Decrypted'} successfully → saved to disk`, false);
+            } else {
+                let finalBlob;
+                if (encryptMode) {
+                    let combined = outputData[0];
+                    finalBlob = new Blob([combined], { type: 'application/octet-stream' });
+                } else {
+                    let combined = new Uint8Array(processed);
+                    let pos = 0;
+                    for (let part of outputData) {
+                        combined.set(part, pos);
+                        pos += part.length;
+                    }
+                    finalBlob = new Blob([combined], { type: 'application/octet-stream' });
+                }
+                const url = URL.createObjectURL(finalBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = encryptMode ? currentFile.name + '.enc' : (currentFile.name.replace(/\.enc$/, '') || 'decrypted.bin');
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                setStatus(`✔️ ${encryptMode ? 'Encrypted' : 'Decrypted'} → download started`, false);
+            }
+            updateProgress(100);
+        } catch (err) {
+            setStatus(`ERROR: ${err.message}`, true);
+            if (useFilePicker && outputStream) await outputStream.abort();
+        } finally {
+            if (useFilePicker && outputStream) await outputStream.close().catch(()=>{});
+        }
+    }
+
+    encryptBtn.addEventListener('click', () => { processFile(true); });
+    decryptBtn.addEventListener('click', () => { processFile(false); });
+</script>
+</body>
+</html>

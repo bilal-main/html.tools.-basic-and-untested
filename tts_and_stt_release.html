@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Nyx · Voice Studio | TTS + STT</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: radial-gradient(circle at 20% 30%, #0a0c12, #030507);
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+            color: #eaeef2;
+            line-height: 1.6;
+            padding: 2rem 1.5rem;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(8, 12, 18, 0.65);
+            backdrop-filter: blur(2px);
+            border-radius: 2rem;
+            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+            border: 1px solid rgba(70, 90, 120, 0.25);
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.25rem 2rem;
+            background: rgba(0, 0, 0, 0.55);
+            border-bottom: 1px solid rgba(90, 120, 150, 0.3);
+            backdrop-filter: blur(8px);
+        }
+
+        .brand h1 {
+            font-weight: 500;
+            font-size: 1.5rem;
+            letter-spacing: -0.3px;
+            background: linear-gradient(135deg, #f0f3fa, #bdd4ff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .brand span {
+            font-size: 0.8rem;
+            color: #8da3c0;
+            font-family: monospace;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: rgba(20, 28, 40, 0.8);
+            border: 1px solid rgba(110, 140, 180, 0.5);
+            padding: 0.5rem 1.2rem;
+            border-radius: 60px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            font-family: inherit;
+            color: #e2e9ff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(4px);
+        }
+
+        .btn-primary {
+            background: #2c3e5c;
+            border-color: #6c8eb0;
+            color: white;
+            box-shadow: 0 0 6px rgba(70, 130, 200, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: #3a567a;
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: #5c2e2e;
+            border-color: #b06e6e;
+        }
+
+        .btn-danger:hover {
+            background: #7a3a3a;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: #2c5c3e;
+            border-color: #6eb08e;
+        }
+
+        .btn-success:hover {
+            background: #3a7a4e;
+            transform: translateY(-1px);
+        }
+
+        .btn-outline:hover {
+            background: #2c3f55;
+            transform: translateY(-1px);
+        }
+
+        .status-badge {
+            font-size: 0.75rem;
+            background: rgba(0,0,0,0.5);
+            padding: 0.3rem 1rem;
+            border-radius: 60px;
+            font-family: monospace;
+            color: #b7cdff;
+        }
+
+        .main-panel {
+            padding: 2rem 2.5rem;
+        }
+
+        /* Two-column layout */
+        .voice-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .voice-card {
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            border: 1px solid rgba(90, 120, 150, 0.3);
+            transition: all 0.2s;
+        }
+
+        .voice-card h2 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid rgba(110, 140, 180, 0.3);
+            padding-bottom: 0.5rem;
+        }
+
+        .voice-card h2 span {
+            font-size: 1.5rem;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            background: #0a0e14;
+            border: 1px solid #2a3448;
+            border-radius: 1rem;
+            padding: 1rem;
+            color: #eaeef2;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            resize: vertical;
+            margin: 1rem 0;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #6c8eb0;
+        }
+
+        .control-bar {
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+            margin: 1rem 0;
+            align-items: center;
+        }
+
+        select, .voice-select {
+            background: #0f121b;
+            border: 1px solid #2a3345;
+            border-radius: 60px;
+            padding: 0.5rem 1rem;
+            color: #eaeef2;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .recording-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(220, 60, 60, 0.2);
+            padding: 0.3rem 1rem;
+            border-radius: 60px;
+            border-left: 3px solid #ff5555;
+        }
+
+        .pulse {
+            width: 10px;
+            height: 10px;
+            background: #ff5555;
+            border-radius: 50%;
+            animation: pulse 1.2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1.2); }
+        }
+
+        .transcript-area {
+            background: #0a0e14;
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            min-height: 120px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            border: 1px solid #2a3448;
+        }
+
+        .word-count {
+            font-size: 0.7rem;
+            color: #8da3c0;
+            margin-top: 0.5rem;
+        }
+
+        .info-note {
+            background: rgba(50, 70, 90, 0.4);
+            border-left: 3px solid #6c8eb0;
+            padding: 0.5rem 0.8rem;
+            border-radius: 0.8rem;
+            font-size: 0.7rem;
+            margin: 0.5rem 0;
+        }
+
+        footer {
+            padding: 1rem 2rem;
+            text-align: center;
+            font-size: 0.7rem;
+            border-top: 1px solid rgba(70, 90, 110, 0.3);
+            color: #7a8faa;
+        }
+
+        @media (max-width: 780px) {
+            .voice-grid { grid-template-columns: 1fr; }
+            .main-panel { padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="toolbar">
+        <div class="brand">
+            <h1>🎙️ nyx · voice studio</h1>
+            <span>text‑to‑speech + speech‑to‑text</span>
+        </div>
+        <div class="button-group">
+            <button class="btn btn-outline" id="saveTtsHtmlBtn">💾 Save TTS as HTML</button>
+            <button class="btn btn-outline" id="saveSttHtmlBtn">📋 Save STT as HTML</button>
+        </div>
+        <div class="status-badge" id="globalStatus">⚡ ready</div>
+    </div>
+
+    <div class="main-panel">
+        <div class="voice-grid">
+            <!-- TEXT TO SPEECH CARD (unchanged, fully offline) -->
+            <div class="voice-card">
+                <h2><span>🔊</span> Text‑to‑Speech</h2>
+                <p style="font-size:0.8rem; margin-bottom:0.5rem;">Offline · browser native · no server</p>
+                <textarea id="ttsText" placeholder="Type or paste text here... e.g., Welcome to Nyx Voice Studio. This text will be spoken aloud using your browser's built-in voices.">Welcome to Nyx Voice Studio. This tool converts text to speech completely offline, using the Web Speech API. No data leaves your device. You can pause, resume, and choose from available voices.</textarea>
+                
+                <div class="control-bar">
+                    <select id="voiceSelect" class="voice-select"></select>
+                    <input type="range" id="rateSlider" min="0.5" max="2" step="0.05" value="1" style="width:100px;">
+                    <span style="font-size:0.7rem;">speed</span>
+                    <button class="btn" id="speakBtn">▶ Speak</button>
+                    <button class="btn" id="pauseSpeechBtn">⏸ Pause</button>
+                    <button class="btn btn-danger" id="stopSpeechBtn">⏹ Stop</button>
+                </div>
+                <div class="word-count" id="ttsWordCount">0 words</div>
+            </div>
+
+            <!-- SPEECH TO TEXT CARD (improved offline support info) -->
+            <div class="voice-card">
+                <h2><span>🎤</span> Speech‑to‑Text</h2>
+                <p style="font-size:0.8rem; margin-bottom:0.5rem;">Web Speech API · works offline on many devices</p>
+                <div class="info-note">
+                    💡 <strong>Offline capability:</strong> On Android with Google services, and some desktop browsers, speech recognition works <strong>offline</strong> after the language pack is downloaded. If you see "network error", your browser may need an internet connection for this feature.
+                </div>
+                <div class="control-bar">
+                    <select id="sttLanguageSelect">
+                        <option value="en-US">🇺🇸 English (US)</option>
+                        <option value="en-GB">🇬🇧 English (UK)</option>
+                        <option value="zh-CN">🇨🇳 Chinese (Mandarin)</option>
+                        <option value="fr-FR">🇫🇷 French</option>
+                        <option value="de-DE">🇩🇪 German</option>
+                        <option value="es-ES">🇪🇸 Spanish</option>
+                        <option value="it-IT">🇮🇹 Italian</option>
+                        <option value="ja-JP">🇯🇵 Japanese</option>
+                        <option value="ko-KR">🇰🇷 Korean</option>
+                        <option value="ru-RU">🇷🇺 Russian</option>
+                    </select>
+                    <button class="btn btn-success" id="startSttBtn">🎙️ Start Recording</button>
+                    <button class="btn btn-danger" id="stopSttBtn" disabled>⏹ Stop</button>
+                    <button class="btn" id="clearSttBtn">🗑 Clear</button>
+                </div>
+                <div id="sttStatus" class="status-badge" style="margin-bottom:0.5rem; display:inline-block;">⚪ idle</div>
+                <div id="sttTranscript" class="transcript-area">🎤 Click "Start Recording" and speak... transcript will appear here.</div>
+                <div class="control-bar" style="margin-top:0.5rem;">
+                    <button class="btn" id="copySttBtn">📋 Copy Text</button>
+                    <button class="btn" id="downloadSttBtn">💾 Download .txt</button>
+                </div>
+                <div class="word-count" id="sttWordCount">0 words</div>
+            </div>
+        </div>
+    </div>
+    <footer>
+        ⚡ TTS: fully offline (Web Speech API) | STT: uses built‑in browser engine – may work offline if supported by OS/browser | no API keys
+    </footer>
+</div>
+
+<script>
+    // ==================== TEXT TO SPEECH (OFFLINE) ====================
+    let currentUtterance = null;
+    let speechSynth = window.speechSynthesis;
+    let voicesList = [];
+
+    const ttsText = document.getElementById('ttsText');
+    const speakBtn = document.getElementById('speakBtn');
+    const pauseSpeechBtn = document.getElementById('pauseSpeechBtn');
+    const stopSpeechBtn = document.getElementById('stopSpeechBtn');
+    const voiceSelect = document.getElementById('voiceSelect');
+    const rateSlider = document.getElementById('rateSlider');
+    const ttsWordCountSpan = document.getElementById('ttsWordCount');
+
+    function updateTtsWordCount() {
+        const text = ttsText.value.trim();
+        const words = text === '' ? 0 : text.split(/\s+/).length;
+        ttsWordCountSpan.innerText = `${words} words`;
+    }
+    ttsText.addEventListener('input', updateTtsWordCount);
+    updateTtsWordCount();
+
+    function populateVoiceList() {
+        voicesList = speechSynth.getVoices();
+        if (!voicesList.length) return;
+        voiceSelect.innerHTML = '';
+        voicesList.forEach((voice, idx) => {
+            const option = document.createElement('option');
+            option.value = idx;
+            option.textContent = `${voice.name} (${voice.lang})`;
+            if (voice.lang.includes('en')) option.selected = true;
+            voiceSelect.appendChild(option);
+        });
+    }
+    if (speechSynth.onvoiceschanged !== undefined) {
+        speechSynth.onvoiceschanged = populateVoiceList;
+    } else {
+        populateVoiceList();
+    }
+
+    function stopSpeaking() {
+        if (speechSynth.speaking) {
+            speechSynth.cancel();
+        }
+        currentUtterance = null;
+    }
+
+    // NEW: Preprocess text to speak special characters clearly
+    function preprocessForSpeech(text) {
+        // Replace symbols with spoken words (keeps original text displayed)
+        const replacements = [
+            [/@/g, ' at '],
+            [/#/g, ' hash '],
+            [/\$/g, ' dollar '],
+            [/%/g, ' percent '],
+            [/&/g, ' and '],
+            [/\*/g, ' star '],
+            [/!/g, ' exclamation '],
+            [/\?/g, ' question mark '],
+            [/\.\.\./g, ' dot dot dot '],
+            [/\./g, ' point '],
+            [/,/g, ' comma '],
+            [/;/g, ' semicolon '],
+            [/:/g, ' colon '],
+            [/\(/g, ' open parenthesis '],
+            [/\)/g, ' close parenthesis '],
+            [/\[/g, ' open bracket '],
+            [/\]/g, ' close bracket '],
+            [/{/g, ' open brace '],
+            [/}/g, ' close brace '],
+            [/</g, ' less than '],
+            [/>/g, ' greater than '],
+            [/=/g, ' equals '],
+            [/\+/g, ' plus '],
+            [/-/g, ' minus '],
+            [/_/g, ' underscore '],
+            [/\|/g, ' vertical bar '],
+            [/\\/g, ' backslash '],
+            [/\//g, ' slash '],
+            [/~/g, ' tilde '],
+            [/`/g, ' backtick '],
+            [/©/g, ' copyright '],
+            [/®/g, ' registered '],
+            [/™/g, ' trademark ']
+        ];
+        let processed = text;
+        for (const [regex, replacement] of replacements) {
+            processed = processed.replace(regex, replacement);
+        }
+        // Trim extra spaces and ensure punctuation spacing for natural pause
+        processed = processed.replace(/\s+/g, ' ').trim();
+        return processed;
+    }
+
+    function speakText() {
+        stopSpeaking();
+        let rawText = ttsText.value.trim();
+        if (!rawText) {
+            alert("Please enter some text to speak.");
+            return;
+        }
+        // Preprocess the text for clear pronunciation of symbols
+        const spokenText = preprocessForSpeech(rawText);
+        
+        const utterance = new SpeechSynthesisUtterance(spokenText);
+        utterance.rate = parseFloat(rateSlider.value);
+        const selectedVoiceIdx = voiceSelect.value;
+        if (voicesList.length && selectedVoiceIdx) {
+            utterance.voice = voicesList[parseInt(selectedVoiceIdx)];
+        }
+        utterance.lang = utterance.voice ? utterance.voice.lang : 'en-US';
+        utterance.onend = () => { currentUtterance = null; };
+        utterance.onerror = (e) => { console.warn("TTS error", e); currentUtterance = null; };
+        currentUtterance = utterance;
+        speechSynth.speak(utterance);
+    }
+
+    function pauseSpeaking() {
+        if (speechSynth.speaking && !speechSynth.paused) {
+            speechSynth.pause();
+        }
+    }
+
+    speakBtn.addEventListener('click', speakText);
+    pauseSpeechBtn.addEventListener('click', pauseSpeaking);
+    stopSpeechBtn.addEventListener('click', stopSpeaking);
+
+    // ==================== SPEECH TO TEXT (improved offline info) ====================
+    let recognition = null;
+    let isRecording = false;
+    let currentTranscript = "";
+
+    const startSttBtn = document.getElementById('startSttBtn');
+    const stopSttBtn = document.getElementById('stopSttBtn');
+    const clearSttBtn = document.getElementById('clearSttBtn');
+    const sttTranscriptDiv = document.getElementById('sttTranscript');
+    const sttStatusSpan = document.getElementById('sttStatus');
+    const copySttBtn = document.getElementById('copySttBtn');
+    const downloadSttBtn = document.getElementById('downloadSttBtn');
+    const sttLanguageSelect = document.getElementById('sttLanguageSelect');
+    const sttWordCountSpan = document.getElementById('sttWordCount');
+
+    function updateSttWordCount() {
+        const text = sttTranscriptDiv.innerText.trim();
+        const words = text === '' || text === '🎤 Click "Start Recording" and speak... transcript will appear here.' ? 0 : text.split(/\s+/).length;
+        sttWordCountSpan.innerText = `${words} words`;
+    }
+
+    // Check if the browser might support offline speech recognition (indicator only)
+    function checkOfflineSupport() {
+        const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+        const isAndroid = /Android/.test(navigator.userAgent);
+        if (isAndroid && isChrome) {
+            sttStatusSpan.innerText = "📱 Android (offline possible)";
+        } else if (isChrome) {
+            sttStatusSpan.innerText = "🌐 Chrome (offline possible with language pack)";
+        } else {
+            sttStatusSpan.innerText = "⚪ offline support varies";
+        }
+    }
+    checkOfflineSupport();
+
+    function initSpeechRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            sttStatusSpan.innerText = "❌ Browser not supported";
+            startSttBtn.disabled = true;
+            return null;
+        }
+        const recog = new SpeechRecognition();
+        recog.continuous = true;
+        recog.interimResults = true;
+        recog.lang = sttLanguageSelect.value;
+        return recog;
+    }
+
+    function startRecording() {
+        if (recognition && isRecording) return;
+        if (recognition) {
+            try { recognition.abort(); } catch(e) {}
+        }
+        recognition = initSpeechRecognition();
+        if (!recognition) return;
+        
+        recognition.lang = sttLanguageSelect.value;
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        
+        recognition.onstart = () => {
+            isRecording = true;
+            sttStatusSpan.innerHTML = '<span class="recording-indicator"><span class="pulse"></span> 🎙️ Listening...</span>';
+            startSttBtn.disabled = true;
+            stopSttBtn.disabled = false;
+            if (sttTranscriptDiv.innerText.includes("Click 'Start Recording'")) {
+                sttTranscriptDiv.innerText = "";
+                currentTranscript = "";
+            }
+        };
+        
+        recognition.onresult = (event) => {
+            let interim = "";
+            let final = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    final += transcript + " ";
+                } else {
+                    interim += transcript;
+                }
+            }
+            if (final) {
+                currentTranscript += final;
+                sttTranscriptDiv.innerText = currentTranscript + (interim ? " [⏳ " + interim + "]" : "");
+            } else {
+                sttTranscriptDiv.innerText = currentTranscript + (interim ? " [⏳ " + interim + "]" : " ...");
+            }
+            updateSttWordCount();
+        };
+        
+        recognition.onerror = (event) => {
+            console.warn("STT error:", event.error);
+            let errorMsg = event.error;
+            if (errorMsg === 'not-allowed') errorMsg = 'Microphone access denied';
+            else if (errorMsg === 'network') errorMsg = 'Network required – some browsers need internet for speech recognition.';
+            sttStatusSpan.innerText = `⚠️ ${errorMsg}`;
+            stopRecording();
+        };
+        
+        recognition.onend = () => {
+            if (isRecording) {
+                stopRecording();
+            }
+        };
+        
+        try {
+            recognition.start();
+        } catch (err) {
+            sttStatusSpan.innerText = `❌ Could not start: ${err.message}`;
+            stopRecording();
+        }
+    }
+    
+    function stopRecording() {
+        if (recognition) {
+            try { recognition.stop(); } catch(e) {}
+            recognition = null;
+        }
+        isRecording = false;
+        sttStatusSpan.innerText = "⚪ idle";
+        startSttBtn.disabled = false;
+        stopSttBtn.disabled = true;
+        if (!currentTranscript.trim()) {
+            sttTranscriptDiv.innerText = "🎤 Click 'Start Recording' and speak... transcript will appear here.";
+        } else {
+            sttTranscriptDiv.innerText = currentTranscript;
+        }
+        updateSttWordCount();
+    }
+    
+    function clearTranscript() {
+        currentTranscript = "";
+        sttTranscriptDiv.innerText = "🎤 Click 'Start Recording' and speak... transcript will appear here.";
+        updateSttWordCount();
+        if (recognition && isRecording) {
+            stopRecording();
+        }
+    }
+    
+    function copySttText() {
+        let text = currentTranscript.trim();
+        if (!text) text = sttTranscriptDiv.innerText;
+        if (!text || text.includes("Click 'Start Recording'")) {
+            alert("No transcript to copy.");
+            return;
+        }
+        navigator.clipboard.writeText(text).then(() => {
+            alert("Transcript copied to clipboard!");
+        }).catch(() => alert("Could not copy"));
+    }
+    
+    function downloadSttText() {
+        let text = currentTranscript.trim();
+        if (!text) text = sttTranscriptDiv.innerText;
+        if (!text || text.includes("Click 'Start Recording'")) {
+            alert("No transcript to download.");
+            return;
+        }
+        const blob = new Blob([text], {type: "text/plain"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `transcript_${new Date().toISOString().slice(0,19)}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    
+    startSttBtn.addEventListener('click', startRecording);
+    stopSttBtn.addEventListener('click', stopRecording);
+    clearSttBtn.addEventListener('click', clearTranscript);
+    copySttBtn.addEventListener('click', copySttText);
+    downloadSttBtn.addEventListener('click', downloadSttText);
+    sttLanguageSelect.addEventListener('change', () => {
+        if (recognition && isRecording) {
+            stopRecording();
+            setTimeout(() => startRecording(), 100);
+        }
+    });
+    
+    function observeTranscriptChanges() {
+        const observer = new MutationObserver(updateSttWordCount);
+        observer.observe(sttTranscriptDiv, { childList: true, subtree: true, characterData: true });
+    }
+    observeTranscriptChanges();
+    
+    // ==================== SAVE AS STANDALONE HTML ====================
+    function saveAsHtml(moduleType) {
+        let htmlContent = "";
+        let filename = "";
+        if (moduleType === 'tts') {
+            const currentText = ttsText.value;
+            const currentRate = rateSlider.value;
+            const selectedVoiceIdx = voiceSelect.value;
+            const voiceName = voicesList[parseInt(selectedVoiceIdx)]?.name || "Default";
+            htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nyx TTS · Offline Reader</title>
+    <style>
+        body { background: #0a0c12; color: #eaeef2; font-family: system-ui; padding: 2rem; max-width: 800px; margin: 0 auto; }
+        textarea { width: 100%; min-height: 200px; background: #11161f; border: 1px solid #2a3448; border-radius: 1rem; padding: 1rem; color: white; }
+        button { background: #2c3e5c; border: none; padding: 0.5rem 1rem; border-radius: 2rem; color: white; margin: 0.5rem 0.25rem; cursor: pointer; }
+        .controls { margin: 1rem 0; }
+    </style>
+</head>
+<body>
+    <h2>🔊 Offline Text-to-Speech (Saved Snapshot)</h2>
+    <textarea id="ttsArea">${escapeHtml(currentText)}</textarea>
+    <div class="controls">
+        <button id="speakBtn">▶ Speak</button>
+        <button id="stopBtn">⏹ Stop</button>
+        <input type="range" id="rateRange" min="0.5" max="2" step="0.05" value="${currentRate}">
+        <span>Speed</span>
+        <p>Voice: ${escapeHtml(voiceName)} (default system voice)</p>
+    </div>
+    <script>
+        const speakBtn = document.getElementById('speakBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const rateRange = document.getElementById('rateRange');
+        const ttsArea = document.getElementById('ttsArea');
+        function speak() { if(window.speechSynthesis.speaking) window.speechSynthesis.cancel(); const text = ttsArea.value.trim(); if(!text) return; const u = new SpeechSynthesisUtterance(text); u.rate = parseFloat(rateRange.value); window.speechSynthesis.speak(u); }
+        function stopSp() { window.speechSynthesis.cancel(); }
+        speakBtn.onclick = speak;
+        stopBtn.onclick = stopSp;
+    <\/script>
+</body>
+</html>`;
+            filename = "nyx_tts_standalone.html";
+        } else {
+            const transcript = currentTranscript.trim() || sttTranscriptDiv.innerText;
+            const cleanTranscript = transcript.includes("Click 'Start Recording'") ? "" : transcript;
+            htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nyx STT · Transcript</title>
+    <style>
+        body { background: #0a0c12; color: #eaeef2; font-family: monospace; padding: 2rem; max-width: 900px; margin: 0 auto; }
+        pre { background: #11161f; padding: 1.5rem; border-radius: 1rem; white-space: pre-wrap; border: 1px solid #2a3448; }
+        button { background: #2c3e5c; border: none; padding: 0.5rem 1rem; border-radius: 2rem; color: white; margin-top: 1rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>🎤 Speech-to-Text Snapshot</h2>
+    <pre id="transcript">${escapeHtml(cleanTranscript || "No transcript captured.")}</pre>
+    <button id="copyBtn">📋 Copy to Clipboard</button>
+    <script>
+        document.getElementById('copyBtn').onclick = () => {
+            const text = document.getElementById('transcript').innerText;
+            navigator.clipboard.writeText(text).then(() => alert('Copied!'));
+        };
+    <\/script>
+</body>
+</html>`;
+            filename = "nyx_stt_snapshot.html";
+        }
+        const blob = new Blob([htmlContent], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        document.getElementById('globalStatus').innerText = `💾 saved ${filename}`;
+        setTimeout(() => document.getElementById('globalStatus').innerText = "⚡ ready", 2000);
+    }
+    
+    document.getElementById('saveTtsHtmlBtn').addEventListener('click', () => saveAsHtml('tts'));
+    document.getElementById('saveSttHtmlBtn').addEventListener('click', () => saveAsHtml('stt'));
+    
+    function escapeHtml(str) {
+        if (!str) return "";
+        return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
+    }
+</script>
+</body>
+</html>

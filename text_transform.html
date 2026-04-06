@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Nyx · Offline Dark Reader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: radial-gradient(circle at 20% 30%, #0a0c12, #030507);
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+            color: #eaeef2;
+            line-height: 1.65;
+            padding: 2rem 1.5rem;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            background: rgba(8, 12, 18, 0.65);
+            backdrop-filter: blur(2px);
+            border-radius: 2rem;
+            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+            border: 1px solid rgba(70, 90, 120, 0.25);
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.25rem 2rem;
+            background: rgba(0, 0, 0, 0.55);
+            border-bottom: 1px solid rgba(90, 120, 150, 0.3);
+            backdrop-filter: blur(8px);
+        }
+
+        .brand h1 {
+            font-weight: 500;
+            font-size: 1.5rem;
+            letter-spacing: -0.3px;
+            background: linear-gradient(135deg, #f0f3fa, #bdd4ff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .brand span {
+            font-size: 0.8rem;
+            color: #8da3c0;
+            font-family: monospace;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: rgba(20, 28, 40, 0.8);
+            border: 1px solid rgba(110, 140, 180, 0.5);
+            padding: 0.5rem 1.2rem;
+            border-radius: 60px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            font-family: inherit;
+            color: #e2e9ff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(4px);
+        }
+
+        .btn-primary {
+            background: #2c3e5c;
+            border-color: #6c8eb0;
+            color: white;
+            box-shadow: 0 0 6px rgba(70, 130, 200, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: #3a567a;
+            transform: translateY(-1px);
+        }
+
+        .btn-outline:hover {
+            background: #2c3f55;
+            transform: translateY(-1px);
+        }
+
+        .file-status {
+            font-size: 0.8rem;
+            background: rgba(0,0,0,0.5);
+            padding: 0.3rem 1rem;
+            border-radius: 60px;
+            font-family: monospace;
+            color: #b7cdff;
+        }
+
+        .reading-pane {
+            padding: 2.2rem 2.5rem;
+        }
+
+        /* Dark theme for plain text (txt) */
+        .text-content {
+            font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: #0a0e14;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            border: 1px solid #2a3448;
+            overflow-x: auto;
+        }
+
+        /* PDF container – invert colors via filter */
+        .pdf-container {
+            width: 100%;
+            min-height: 70vh;
+            background: #000;
+            border-radius: 1rem;
+            overflow: hidden;
+            border: 1px solid #2a3448;
+        }
+        .pdf-iframe {
+            width: 100%;
+            height: 85vh;
+            border: none;
+            filter: invert(1);
+            background: white; /* invert(1) turns white to black */
+        }
+
+        .empty-message {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #9aaec9;
+            font-size: 1.1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 2rem;
+        }
+
+        footer {
+            padding: 1rem 2rem;
+            text-align: center;
+            font-size: 0.75rem;
+            border-top: 1px solid rgba(70, 90, 110, 0.3);
+            color: #7a8faa;
+        }
+
+        @media (max-width: 680px) {
+            .reading-pane { padding: 1.5rem; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .button-group { justify-content: center; }
+            .pdf-iframe { height: 70vh; }
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="toolbar">
+        <div class="brand">
+            <h1>📖 nyx · dark reader</h1>
+            <span>txt → formatted dark text | pdf → inverted colors</span>
+        </div>
+        <div class="button-group">
+            <input type="file" id="fileInput" accept=".txt,.pdf" style="display: none;">
+            <button class="btn btn-primary" id="loadFileBtn">📂 OPEN FILE</button>
+            <button class="btn btn-outline" id="saveHtmlBtn">✨ SAVE as HTML</button>
+            <button class="btn" id="loadExampleBtn">🌿 Example (txt)</button>
+        </div>
+        <div class="file-status" id="fileStatusMsg">📁 no file loaded</div>
+    </div>
+
+    <div class="reading-pane" id="readingPane">
+        <div class="empty-message" id="emptyState">
+            ✦  offline dark reader  ✦ <br><br>
+            Drop any <strong>.txt</strong> or <strong>.pdf</strong> file, or click <strong>OPEN FILE</strong>.<br>
+            📄 .txt → displayed as plain text in a dark, readable container<br>
+            📑 .pdf → shown with colors inverted (dark background, light text)<br>
+            🖤 All processing happens locally – no internet required.
+        </div>
+        <div id="contentContainer" style="display: none;"></div>
+    </div>
+    <footer>
+        ⚡ fully client‑side | works completely offline | no external libraries
+    </footer>
+</div>
+
+<script>
+    // DOM elements
+    const fileInput = document.getElementById('fileInput');
+    const loadFileBtn = document.getElementById('loadFileBtn');
+    const saveHtmlBtn = document.getElementById('saveHtmlBtn');
+    const loadExampleBtn = document.getElementById('loadExampleBtn');
+    const contentContainer = document.getElementById('contentContainer');
+    const emptyStateDiv = document.getElementById('emptyState');
+    const fileStatusSpan = document.getElementById('fileStatusMsg');
+
+    let currentContent = "";      // HTML representation of the current document
+    let currentFileName = "";
+    let currentType = "";         // "txt" or "pdf"
+    let currentBlob = null;       // for PDF, store original blob for saving
+
+    // Helper: reset UI
+    function resetToEmpty() {
+        contentContainer.style.display = "none";
+        emptyStateDiv.style.display = "flex";
+        fileStatusSpan.innerText = "📁 no file loaded";
+        currentContent = "";
+        currentFileName = "";
+        currentType = "";
+        currentBlob = null;
+    }
+
+    function showError(msg) {
+        contentContainer.innerHTML = `<div class="empty-message">⚠️ ${msg}</div>`;
+        contentContainer.style.display = "block";
+        emptyStateDiv.style.display = "none";
+        fileStatusSpan.innerText = `❌ error: ${msg.substring(0, 60)}`;
+    }
+
+    // Load and display a .txt file
+    function loadTxt(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target.result;
+            // Escape HTML to avoid injection, but preserve whitespace
+            const safeText = escapeHtml(text);
+            const html = `<div class="text-content">${safeText}</div>`;
+            currentContent = html;
+            currentFileName = file.name;
+            currentType = "txt";
+            currentBlob = null;
+
+            contentContainer.innerHTML = html;
+            contentContainer.style.display = "block";
+            emptyStateDiv.style.display = "none";
+            fileStatusSpan.innerText = `📖 loaded: ${file.name}  •  ${text.length} chars`;
+        };
+        reader.onerror = () => showError("Failed to read text file");
+        reader.readAsText(file, "UTF-8");
+    }
+
+    // Load and display a .pdf with inverted colors using native browser PDF viewer
+    function loadPdf(file) {
+        // Create a blob URL for the PDF file
+        const blobUrl = URL.createObjectURL(file);
+        // Build an iframe that loads the PDF with invert filter
+        const html = `
+            <div class="pdf-container">
+                <iframe class="pdf-iframe" src="${blobUrl}" title="PDF Viewer"></iframe>
+            </div>
+        `;
+        currentContent = html;
+        currentFileName = file.name;
+        currentType = "pdf";
+        currentBlob = file;   // store for saving
+
+        contentContainer.innerHTML = html;
+        contentContainer.style.display = "block";
+        emptyStateDiv.style.display = "none";
+        fileStatusSpan.innerText = `📖 loaded: ${file.name}  •  colors inverted (dark mode)`;
+
+        // Revoke the blob URL after a delay to avoid memory leaks (iframe keeps it alive)
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    }
+
+    // Main dispatcher
+    function loadFile(file) {
+        if (!file) return;
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (ext === 'txt') {
+            loadTxt(file);
+        } else if (ext === 'pdf') {
+            loadPdf(file);
+        } else {
+            showError(`Unsupported file type: .${ext}. Only .txt and .pdf are supported.`);
+        }
+    }
+
+    // Save current view as a standalone HTML file (self-contained)
+    function saveAsHtml() {
+        if (!currentContent) {
+            alert("No content loaded. Please open a .txt or .pdf file first.");
+            return;
+        }
+
+        let standaloneHtml = "";
+        if (currentType === "txt") {
+            // For text files, the HTML is already self-contained
+            standaloneHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtml(currentFileName)} · nyx reader</title>
+    <style>
+        body {
+            background: radial-gradient(circle at 20% 30%, #0a0c12, #010101);
+            font-family: 'Inter', 'Segoe UI', monospace;
+            color: #eaeef2;
+            line-height: 1.65;
+            padding: 2rem 1.5rem;
+        }
+        .reader-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            background: rgba(6, 10, 16, 0.7);
+            backdrop-filter: blur(2px);
+            border-radius: 2rem;
+            border: 1px solid rgba(80, 110, 140, 0.3);
+            padding: 2rem 2.5rem;
+        }
+        .text-content {
+            font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: #0a0e14;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            border: 1px solid #2a3448;
+            overflow-x: auto;
+        }
+        .footer-note {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.7rem;
+            color: #7c8aa5;
+            border-top: 1px solid rgba(90,110,130,0.3);
+            padding-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+<div class="reader-container">
+    ${currentContent}
+    <div class="footer-note">✦ generated by nyx·reader | dark elegance ✦</div>
+</div>
+</body>
+</html>`;
+        } else if (currentType === "pdf") {
+            // For PDF, we need to embed the PDF data as a data URL or blob URL in the saved HTML.
+            // To make it fully self-contained, we can embed the PDF file as base64 data URL.
+            if (!currentBlob) {
+                alert("PDF data not available for saving.");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64Pdf = e.target.result.split(',')[1];
+                const dataUrl = `data:application/pdf;base64,${base64Pdf}`;
+                const html = `
+                    <div class="pdf-container">
+                        <iframe class="pdf-iframe" src="${dataUrl}" title="PDF Viewer"></iframe>
+                    </div>
+                `;
+                const fullHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtml(currentFileName)} · nyx reader</title>
+    <style>
+        body {
+            background: radial-gradient(circle at 20% 30%, #0a0c12, #010101);
+            font-family: 'Inter', 'Segoe UI', monospace;
+            color: #eaeef2;
+            line-height: 1.65;
+            padding: 2rem 1.5rem;
+        }
+        .reader-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            background: rgba(6, 10, 16, 0.7);
+            backdrop-filter: blur(2px);
+            border-radius: 2rem;
+            border: 1px solid rgba(80, 110, 140, 0.3);
+            padding: 2rem 2.5rem;
+        }
+        .pdf-container {
+            width: 100%;
+            min-height: 70vh;
+            background: #000;
+            border-radius: 1rem;
+            overflow: hidden;
+            border: 1px solid #2a3448;
+        }
+        .pdf-iframe {
+            width: 100%;
+            height: 85vh;
+            border: none;
+            filter: invert(1);
+            background: white;
+        }
+        .footer-note {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.7rem;
+            color: #7c8aa5;
+            border-top: 1px solid rgba(90,110,130,0.3);
+            padding-top: 1rem;
+        }
+        @media (max-width:650px){ .pdf-iframe { height: 70vh; } }
+    </style>
+</head>
+<body>
+<div class="reader-container">
+    ${html}
+    <div class="footer-note">✦ generated by nyx·reader | dark elegance ✦</div>
+</div>
+</body>
+</html>`;
+                downloadHtml(fullHtml, currentFileName.replace(/\.pdf$/i, '') + ".html");
+            };
+            reader.readAsDataURL(currentBlob);
+            return; // download will be triggered inside the callback
+        }
+
+        downloadHtml(standaloneHtml, currentFileName.replace(/\.txt$/i, '') + ".html");
+    }
+
+    function downloadHtml(htmlString, filename) {
+        const blob = new Blob([htmlString], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        fileStatusSpan.innerText = `💾 saved as ${filename}  |  ${currentFileName}`;
+    }
+
+    // Example .txt content (C++ hardening guide)
+    function loadExample() {
+        const exampleText = `# 🛡️ Hardening C++ Executable: Anti-Analysis & Binary Encryption
+
+## Compiler Flags for Obfuscation
+| Flag | Effect |
+|------|--------|
+| -fvisibility=hidden | Hides symbols |
+| -fstack-protector-strong | Stack canaries |
+| -fPIE -pie | ASLR |
+
+## Code Obfuscation
+bool is_debugged() {
+    return ptrace(PTRACE_TRACEME, 0, 1, 0) == -1;
+}
+
+## Binary Encryption (Loader)
+- Encrypt executable with AES-256
+- Small loader decrypts at runtime
+- Static analysis becomes impossible without key
+
+*Layered protection: compiler, code, and disk encryption.*`;
+        const blob = new Blob([exampleText], { type: "text/plain" });
+        const file = new File([blob], "example_guide.txt", { type: "text/plain" });
+        loadTxt(file);
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    // Drag & drop support
+    const dropZone = document.querySelector('.app-container');
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.style.border = '1px solid #7c9ed6';
+    });
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.style.border = '1px solid rgba(70, 90, 120, 0.25)';
+    });
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.border = '1px solid rgba(70, 90, 120, 0.25)';
+        const files = e.dataTransfer.files;
+        if (files.length > 0) loadFile(files[0]);
+    });
+
+    // Button events
+    loadFileBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) loadFile(e.target.files[0]);
+        fileInput.value = '';
+    });
+    saveHtmlBtn.addEventListener('click', saveAsHtml);
+    loadExampleBtn.addEventListener('click', loadExample);
+</script>
+</body>
+</html>
